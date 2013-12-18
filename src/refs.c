@@ -328,7 +328,8 @@ static int reference__create(
 	const char *name,
 	const git_oid *oid,
 	const char *symbolic,
-	int force)
+	int force,
+	const git_oid *old_id)
 {
 	char normalized[GIT_REFNAME_MAX];
 	git_refdb *refdb;
@@ -355,7 +356,7 @@ static int reference__create(
 
 	GITERR_CHECK_ALLOC(ref);
 
-	if ((error = git_refdb_write(refdb, ref, force)) < 0) {
+	if ((error = git_refdb_write(refdb, ref, force, old_id)) < 0) {
 		git_reference_free(ref);
 		return error;
 	}
@@ -390,7 +391,7 @@ int git_reference_create(
 		return -1;
 	}
 
-	return reference__create(ref_out, repo, name, oid, NULL, force);
+	return reference__create(ref_out, repo, name, oid, NULL, force, NULL);
 }
 
 int git_reference_symbolic_create(
@@ -409,7 +410,7 @@ int git_reference_symbolic_create(
 		normalized, sizeof(normalized), target)) < 0)
 		return error;
 
-	return reference__create(ref_out, repo, name, NULL, normalized, force);
+	return reference__create(ref_out, repo, name, NULL, normalized, force, NULL);
 }
 
 int git_reference_set_target(
@@ -417,6 +418,10 @@ int git_reference_set_target(
 	git_reference *ref,
 	const git_oid *id)
 {
+	int error;
+	git_odb *odb;
+	git_repository *repo;
+
 	assert(out && ref && id);
 
 	if (ref->type != GIT_REF_OID) {
@@ -424,7 +429,18 @@ int git_reference_set_target(
 		return -1;
 	}
 
-	return git_reference_create(out, ref->db->repo, ref->name, id, 1);
+	repo = ref->db->repo;
+	/* Sanity check the reference being created - target must exist. */
+	if ((error = git_repository_odb__weakptr(&odb, repo)) < 0)
+		return error;
+
+	if (!git_odb_exists(odb, id)) {
+		giterr_set(GITERR_REFERENCE,
+			"Target OID for the reference doesn't exist on the repository");
+		return -1;
+	}
+
+	return reference__create(out, repo, ref->name, id, NULL, 1, NULL);
 }
 
 int git_reference_symbolic_set_target(

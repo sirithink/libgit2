@@ -93,7 +93,7 @@ struct git_refdb_backend {
 	 * must provide this function.
 	 */
 	int (*write)(git_refdb_backend *backend,
-		const git_reference *ref, int force);
+		const git_reference *ref, int force, const git_oid *old);
 
 	int (*rename)(
 		git_reference **out, git_refdb_backend *backend,
